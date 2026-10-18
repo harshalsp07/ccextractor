@@ -1704,6 +1704,7 @@ int rcwt_loop(struct lib_ccx_ctx *ctx)
 	int bread = 0; // Bytes read
 	int caps = 0;
 	LLONG result;
+	int is_teletext;
 	struct encoder_ctx *enc_ctx = update_encoder_list(ctx);
 	struct TeletextCtx *telctx;
 	// As BUFSIZE is a macro this is just a reminder
@@ -1747,7 +1748,12 @@ int rcwt_loop(struct lib_ccx_ctx *ctx)
 #else
 	dec_ctx->dtvcc->encoder = (void *)enc_ctx; // WARN: otherwise cea-708 will not work
 #endif
-	if (parsebuf[6] == 0 && parsebuf[7] == 2)
+	// File format revision 2 means this is a teletext RCWT file: raw teletext
+	// chunks instead of time headers with caption data. Remember the decision:
+	// parsebuf is reused for the time headers below, so bytes 6-7 stop
+	// describing the file format after the first read.
+	is_teletext = (parsebuf[6] == 0 && parsebuf[7] == 2);
+	if (is_teletext)
 	{
 		dec_ctx->codec = CCX_CODEC_TELETEXT;
 		dec_ctx->private_data = telxcc_init();
@@ -1765,7 +1771,7 @@ int rcwt_loop(struct lib_ccx_ctx *ctx)
 	// Loop until no more data is found
 	while (1)
 	{
-		if (parsebuf[6] == 0 && parsebuf[7] == 2)
+		if (is_teletext)
 		{
 			result = buffered_read(ctx->demux_ctx, buf, TELETEXT_CHUNK_LEN);
 			ctx->demux_ctx->past += result;
